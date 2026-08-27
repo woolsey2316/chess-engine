@@ -79,6 +79,7 @@ class ChessBoard(tk.Tk):
                     x = (c + 0.5) * self.square_size
                     y = (r + 0.5) * self.square_size
                     self.canvas.create_image(x, y, image=self.pieces_images[piece], tags="piece")
+
     def on_start_drag(self, event):
         """Remembers the starting coordinates where the user clicked."""
         # Find closest item to the click
@@ -87,7 +88,6 @@ class ChessBoard(tk.Tk):
         self.start_y = event.y
         self.pickup_x = event.x
         self.pickup_y = event.y
-
 
     def on_drag(self, event):
         """Calculates the movement delta and moves the piece in real time."""
@@ -105,28 +105,72 @@ class ChessBoard(tk.Tk):
 
     def on_drop(self, event):
         """Clears the drag tracking when the mouse button is released."""
+        # Remove captured piece if capture occurs
+        move = Move(
+                self.get_square_from_gui(self.pickup_x, self.pickup_y), 
+                self.get_square_from_gui(event.x, event.y)
+                )
+        self.secondClosestPiece = ChessBoard.get_second_closest(self.canvas, event.x, event.y, self.dragged_item)
+
+        secondClosestPieceCoords = self.canvas.coords(self.secondClosestPiece)
+        is_captured = self.is_piece_captured(move.to_sq, secondClosestPieceCoords)
+        if is_captured:
+            self.canvas.moveto(self.secondClosestPiece, 1000, 100)
         # Grid-snapping logic here to snap to a chess board square
         end_col = math.floor(event.x / self.square_size)
         end_row = math.floor(event.y / self.square_size)
         end_x = end_col * self.square_size 
         end_y = end_row * self.square_size
+
         self.canvas.moveto(self.dragged_item, end_x, end_y)
-        move = Move(
-                self.get_square_from_gui(self.pickup_x, self.pickup_y), 
-                self.get_square_from_gui(event.x, event.y)
-                )
+        
         self.game.make_move(move)
+        
         print(move.__repr__())
+
         self.game.print_board()
         
-        self.captured_piece = self.canvas.find_closest(event.x, event.y)[0]
-
         self.dragged_item = None
+
+    def is_piece_captured(self, toSq, coords):
+        col = math.floor(coords[0] / self.square_size)
+        row = 7 - math.floor(coords[1] / self.square_size)
+        return row * 8 + col == toSq
 
     def get_square_from_gui(self, x, y):
         col = math.floor(x / self.square_size)
         row = 7 - math.floor(y / self.square_size)
         return row * 8 + col
+
+    def get_second_closest(canvas, x, y, dragged_item):
+        # Get all items on the canvas
+        all_items = canvas.find_all()
+        distances = []
+        for item in all_items:
+            item_type = canvas.type(item)
+            if item == dragged_item:
+                continue
+            if item_type != "image":
+                continue
+            # Get coordinates [x1, y1, x2, y2] of the bounding box
+            coords = canvas.bbox(item)
+            if not coords:
+                continue
+            
+            # Calculate the center point of the item
+            cx = (coords[0] + coords[2]) / 2
+            cx = coords[0] if len(coords) < 3 else (coords[0] + coords[2]) / 2
+            cy = (coords[1] + coords[3]) / 2 if len(coords) >= 4 else coords[1]
+            
+            # Compute Euclidean distance squared (faster than Math.hypot/sqrt for sorting)
+            dist_sq = (cx - x) ** 2 + (cy - y) ** 2
+            distances.append((dist_sq, item))
+        
+        # Sort by distance
+        distances.sort(key=lambda x: x[0])
+        print(distances) 
+        # Return the second closest item ID if it exists
+        return distances[0][1] if len(distances) >= 1 else None
 if __name__ == "__main__":
     app = ChessBoard()
     app.mainloop()
