@@ -1,13 +1,13 @@
 import tkinter as tk
 import math
 from PIL import Image, ImageTk
-from chess_game import ChessGame, Move
-
+from chess_game import ChessGame, Move, Color, PieceType
+from move_validator import MoveValidator
 class ChessBoard(tk.Tk):
     def __init__(self):
         super().__init__()
         self.game = ChessGame()
-
+        self.move_validator = MoveValidator()
         self.title("Tkinter Chess Sprites")
         self.canvas_size = 512
         self.square_size = self.canvas_size / 8
@@ -88,6 +88,21 @@ class ChessBoard(tk.Tk):
         self.start_y = event.y
         self.pickup_x = event.x
         self.pickup_y = event.y
+        
+        sq = self.get_square_from_gui(self.pickup_x, self.pickup_y)
+        piece = self.game.identify_piece(sq)
+        pawn_idx = self.game.pieces[self.game.side_to_move][PieceType.PAWN]
+        friendly_pieces = self.game.occupancies[self.game.side_to_move]
+        enemy_pieces = self.game.occupancies[~self.game.side_to_move]
+        king_idx = self.game.pieces[self.game.side_to_move][PieceType.KING]
+        color = self.game.side_to_move
+        print("piece: ", piece)
+        print(type(self.move_validator))
+        if piece == PieceType.PAWN:
+            possible_moves = self.move_validator.generate_legal_pawn_moves(pawn_idx, friendly_pieces, enemy_pieces, king_idx, color, self.game.pieces)
+        elif piece == PieceType.BISHOP:
+            possible_moves = self.move_validator.generate_legal_bishop_moves(self.game.occupancies[Color.BOTH], sq, self.game.pieces)
+        print("possible moves: ", possible_moves)
 
     def on_drag(self, event):
         """Calculates the movement delta and moves the piece in real time."""
@@ -126,20 +141,18 @@ class ChessBoard(tk.Tk):
         
         self.game.make_move(move)
         
-        print(move.__repr__())
-
         self.game.print_board()
         
         self.dragged_item = None
 
     def is_piece_captured(self, toSq, coords):
-        col = math.floor(coords[0] / self.square_size)
-        row = 7 - math.floor(coords[1] / self.square_size)
+        col = int(coords[0] // self.square_size)
+        row = int(7 - coords[1] // self.square_size)
         return row * 8 + col == toSq
 
     def get_square_from_gui(self, x, y):
-        col = math.floor(x / self.square_size)
-        row = 7 - math.floor(y / self.square_size)
+        col = int(x // self.square_size)
+        row = 7 - int(y // self.square_size)
         return row * 8 + col
 
     def get_second_closest(canvas, x, y, dragged_item):
@@ -168,7 +181,6 @@ class ChessBoard(tk.Tk):
         
         # Sort by distance
         distances.sort(key=lambda x: x[0])
-        print(distances) 
         # Return the second closest item ID if it exists
         return distances[0][1] if len(distances) >= 1 else None
 if __name__ == "__main__":

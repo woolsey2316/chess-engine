@@ -95,18 +95,21 @@ class ChessGame:
         self.castling_rights = 0xF
         self.halfmove_clock = 0
         self.fullmove_number = 1
+    
+    def identify_piece(self, from_sq: int) -> PieceType:
+        us = self.side_to_move
+        print("from_sq: ", from_sq)
+        # Identify the piece type sitting on the 'from' square
+        for p in PieceType:
+            if self.get_bit(self.pieces[us][p], from_sq):
+                return p
 
     def make_move(self, move: Move) -> bool:
         """Executes a move using highly efficient bitwise changes."""
         us = self.side_to_move
         them = Color.BLACK if us == Color.WHITE else Color.WHITE
         
-        moved_piece = None
-        # Identify the piece type sitting on the 'from' square
-        for p in PieceType:
-            if self.get_bit(self.pieces[us][p], move.from_sq):
-                moved_piece = p
-                break
+        moved_piece = self.identify_piece(move.from_sq)        
                 
         if moved_piece is None:
             return False  # Illegal: No active piece on the source square
