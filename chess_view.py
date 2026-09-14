@@ -94,14 +94,15 @@ class ChessBoard(tk.Tk):
         pawn_idx = self.game.pieces[self.game.side_to_move][PieceType.PAWN]
         friendly_pieces = self.game.occupancies[self.game.side_to_move]
         enemy_pieces = self.game.occupancies[~self.game.side_to_move]
-        king_idx = self.game.pieces[self.game.side_to_move][PieceType.KING]
+        king_bb = self.game.pieces[self.game.side_to_move][PieceType.KING]
         color = self.game.side_to_move
-        print("piece: ", piece)
-        print(type(self.move_validator))
+        possible_moves = None
         if piece == PieceType.PAWN:
-            possible_moves = self.move_validator.generate_legal_pawn_moves(pawn_idx, friendly_pieces, enemy_pieces, king_idx, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
         elif piece == PieceType.BISHOP:
-            possible_moves = self.move_validator.generate_legal_bishop_moves(self.game.occupancies[Color.BOTH], sq, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_bishop_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+        elif piece == PieceType.KNIGHT:
+            possible_moves = self.move_validator.generate_legal_knight_moves(sq, friendly_pieces, enemy_pieces, king_bb)
         print("possible moves: ", possible_moves)
 
     def on_drag(self, event):

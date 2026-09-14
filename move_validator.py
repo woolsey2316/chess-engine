@@ -33,7 +33,7 @@ class MoveValidator():
 
         return attacks & 0xFFFFFFFFFFFFFFFF
 
-    def generate_legal_knight_moves(knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_idx: int) -> list:
+    def generate_legal_knight_moves(knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int) -> list:
         """Generates strictly legal moves for a single knight."""
         legal_moves = []
         knight_bb = 1 << knight_idx
@@ -55,7 +55,7 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
             
             # Check if enemy pieces can hit our king square after this move
-            if not (enemy_attacks_func(next_enemy, next_friendly) & (1 << king_idx)):
+            if not (enemy_attacks_func(next_enemy, next_friendly) & king_idx):
                 legal_moves.append((knight_idx, target_idx))
                 
             # Clear the bit to process the next move
@@ -81,16 +81,13 @@ class MoveValidator():
         else:
             return pawn_bitboard >> 8
     
-
-    def generate_legal_bishop_moves(bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_idx: int) -> list:
+    def generate_legal_bishop_moves(self, bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a bishop"""
         legal_moves = []
         bishop_bb = 1 << bishop_idx
 
-        pseudo_moves = get_bishop_moves(bishop_bb, bishop_idx)
-
+        pseudo_moves = self.get_bishop_moves(bishop_bb, bishop_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
-
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
@@ -101,62 +98,66 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
 
             # Check if enemy pieces can hit our king square after this move
-            if not (enemy_attacks_func(next_enemy, next_friendly) & (1 << king_idx)):
-                legal_moves.append((pawn_idx, target_idx))
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((bishop_idx, target_idx))
                 
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
 
-    def get_bishop_moves(occ: int, sq: int) -> int:
+    def get_bishop_moves(self, occ: int, sq: int) -> int:
         occ   &= B_MASKS[sq]
         occ   *= BMagic[sq]
         occ  >>= 64 - BBits[sq]
         return B_ATTACK_TABLE[B_OFFSETS[sq] + occ]
 
-    def get_bishop_attacks(occ: int, enemy: int, friendly: int, color: Color):
-        b = occ ^ (occ - 1)
-        while b:
-            bishop_bb = 1 << b
+    def get_bishop_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
+        b = occ
+        pseudo_moves = 0
+        valid_targets = 0
+        while b > 0:
+            bishop_bb = b & 1
 
-            pseudo_moves |= get_bishop_moves(bishop_bb, color)
+            pseudo_moves |= self.get_bishop_moves(bishop_bb, color)
 
             valid_targets |= pseudo_moves & ~friendly
 
-            b = b ^ (b - 1)
+            b >>= 1
         return valid_targets
 
-    def get_rook_attacks(occ: int, enemy: int, friendly: int, color: Color):
-        b = occ ^ (occ - 1)
+    def get_rook_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
+        b = occ
+        pseudo_moves = 0
+        valid_targets = 0
         while b:
-            rook_bb = 1 << b
+            rook_bb = b & 1
 
-            pseudo_moves |= get_rook_moves(bishop_bb, color)
+            pseudo_moves |= self.get_rook_moves(rook_bb, color)
 
             valid_targets |= pseudo_moves & ~friendly
 
-            b = b ^ (b - 1)
+            b >>= 1
         return valid_targets
         
-    def get_rook_moves(occ: int, sq: int) -> int:
+    def get_rook_moves(self, occ: int, sq: int) -> int:
         occ   &= R_MASKS[sq]
         occ   *= RMagic[sq]
         occ  >>= 64 - RBits[sq]
         return R_ATTACK_TABLE[R_OFFSETS[sq] + occ]
 
-    def enemy_attacks_func(self, pieces: int[][], enemy: int, friendly: int) -> int:
+    def enemy_attacks_func(self, pieces: list[list[int]], color: Color, enemy: int, friendly: int) -> int:
         attacks = 0
         for p in PieceType:
-            p_bb = pieces[~self.game.side_to_move][p]
+            p_bb = pieces[~color][p]
             if p == PieceType.PAWN:
-                attacks |= self.get_pawn_attacks(p_bb, ~self.game.side_to_move)
+                attacks |= self.get_pawn_attacks(p_bb, ~color)
             elif p == PieceType.BISHOP:
-                attacks |= self.get_bishop_attack(p_bb, enemy, friendly)
+                attacks |= self.get_bishop_attacks(p_bb, enemy, friendly, color)
             elif p == PieceType.ROOK:
-                attacks |= self.get_bishop_attack(p_bb, enemy, friendly)
+                attacks |= self.get_rook_attacks(p_bb, enemy, friendly, color)
         return attacks
 
-    def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_idx: int, color: Color, pieces: int[][]) -> list:
+    def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a pawn"""
         legal_moves = []
         
@@ -176,7 +177,7 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
 
             # Check if enemy pieces can hit our king square after this move
-            if not (self.enemy_attacks_func(pieces, next_enemy, next_friendly) & (1 << king_idx)):
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
                 legal_moves.append((pawn_idx, target_idx))
                 
             # Clear the bit to process the next move

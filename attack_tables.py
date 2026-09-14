@@ -185,6 +185,22 @@ BBits = [
   6, 5, 5, 5, 5, 5, 5, 6
 ];
 
+def generate_attacks_on_the_fly(sq: int, block: int, is_rook: bool) -> int:
+    r, c = sq // 8, sq % 8
+    attacks = 0
+    dirs = [(1,0), (-1,0), (0,1), (0,-1)] if is_rook else [(1,1), (1,-1), (-1,1), (-1,-1)]
+    
+    for dr, dc in dirs:
+        nr, nc = r + dr, c + dc
+        # Real attacks can hit the true board edges
+        while 0 <= nr < 8 and 0 <= nc < 8:
+            attacks |= (1 << (nr * 8 + nc))
+            if block & (1 << (nr * 8 + nc)):
+                break  # Sliding ray is blocked by a piece
+            nr += dr
+            nc += dc
+    return attacks
+
 def generate_mask(sq: int, is_rook: bool) -> int:
     # Generates relevant occupancy mask (excluding board edges)
     r, c = sq // 8, sq % 8
@@ -199,6 +215,24 @@ def generate_mask(sq: int, is_rook: bool) -> int:
             nc += dc
     return mask
 
+def get_occupancy(index: int, bits_count: int, mask: int) -> int:
+    occupancy = 0
+    # Create a copy so we don't destroy the reference mask
+    temp_mask = mask 
+    
+    for i in range(bits_count):
+        if temp_mask == 0:
+            break
+            
+        # Get Least Significant 1 Bit (LS1B) index safely
+        square = (temp_mask & -temp_mask).bit_length() - 1  
+        temp_mask &= temp_mask - 1                          # Clear LS1B
+        
+        # If the i-th bit of our index permutation is set, map it to the board square
+        if index & (1 << i):
+            occupancy |= (1 << square)
+            
+    return occupancy
 # Store structural configurations
 B_MASKS = [0] * 64
 R_MASKS = [0] * 64
@@ -219,6 +253,20 @@ def init_attack_tables():
     for sq in range(64):
         B_MASKS[sq] = generate_mask(sq, is_rook=False)
         R_MASKS[sq] = generate_mask(sq, is_rook=True)
+        # --- Populate Bishop Flat Table ---
+        b_patterns = 1 << BBits[sq]
+        for i in range(b_patterns):
+            occ = get_occupancy(i, BBits[sq], B_MASKS[sq])
+            # If using proper magic hashes: 
+            # magic_index = (occ * B_MAGICS[sq]) >> (64 - BBits[sq])
+            # Since this is initialization, standard sequential indexing maps directly into the subset blocks
+            B_ATTACK_TABLE[B_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=False)
+            
+        # --- Populate Rook Flat Table ---
+        r_patterns = 1 << RBits[sq]
+        for i in range(r_patterns):
+            occ = get_occupancy(i, RBits[sq], R_MASKS[sq])
+            R_ATTACK_TABLE[R_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=True)
 
 def print_magic_numbers():
   print("RMagic[64] = [")

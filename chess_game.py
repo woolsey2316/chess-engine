@@ -98,7 +98,6 @@ class ChessGame:
     
     def identify_piece(self, from_sq: int) -> PieceType:
         us = self.side_to_move
-        print("from_sq: ", from_sq)
         # Identify the piece type sitting on the 'from' square
         for p in PieceType:
             if self.get_bit(self.pieces[us][p], from_sq):
