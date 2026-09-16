@@ -16,6 +16,7 @@ class ChessBoard(tk.Tk):
         self.canvas.pack()
         
         self.pieces_images = {} 
+        self.possible_oval = []
         self.draw_board()
         self.load_sprites_and_pieces()
         
@@ -43,7 +44,7 @@ class ChessBoard(tk.Tk):
                 x2 = x1 + self.square_size
                 y2 = y1 + self.square_size
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="")
-
+                
     def load_sprites_and_pieces(self):
         # Dictionary placeholder for loaded images (e.g., 'P' for white pawn)
         self.pieces_images['P'] = ImageTk.PhotoImage(Image.open("sprites/w_pawn.webp"))
@@ -75,10 +76,24 @@ class ChessBoard(tk.Tk):
         for r in range(8):
             for c in range(8):
                 piece = self.board_state[r][c]
+                x1 = c * self.square_size
+                y1 = r * self.square_size
+                x2 = x1 + self.square_size
+                y2 = y1 + self.square_size
+
                 if piece:
                     x = (c + 0.5) * self.square_size
                     y = (r + 0.5) * self.square_size
                     self.canvas.create_image(x, y, image=self.pieces_images[piece], tags="piece")
+                oval_id = self.canvas.create_oval(
+                        -50 + self.square_size/2,
+                        -50 + self.square_size/2,
+                        -50 - + self.square_size/2,
+                        -50 - self.square_size/2,
+                        fill="lightblue", outline="lightblue", width=1
+                        )
+                self.possible_oval.append(oval_id)
+
     def grid_snap(self, x: int, y: int) -> (int, int):
         # Grid-snapping logic here to snap to a chess board square
         end_col = math.floor(x / self.square_size)
@@ -86,6 +101,28 @@ class ChessBoard(tk.Tk):
         end_x = end_col * self.square_size 
         end_y = end_row * self.square_size
         return (end_x, end_y)
+    
+    def draw_possible_moves(self, possible_moves):
+        for move in possible_moves or []:
+            (row, col) = self.get_row_col_from_sq(move[1])
+            self.move_oval_to(
+                    self.possible_oval[move[1]],
+                    col * self.square_size,
+                    (7 - row) * self.square_size
+                    ) 
+    # Function to move the oval to a new top-left x, y coordinate
+    def move_oval_to(self, item, new_x, new_y):
+        # Get current width and height of the oval
+        x1, y1, x2, y2 = self.canvas.coords(item)
+        w = x2 - x1
+        h = y2 - y1
+        # Set new coordinates keeping the same size
+        self.canvas.coords(item, new_x, new_y, new_x + w, new_y + h)
+
+    def hide_possible_moves(self):
+        for oval_id in self.possible_oval:
+            self.move_oval_to(oval_id, -50, -50)
+
     def on_start_drag(self, event):
         """Remembers the starting coordinates where the user clicked."""
         # Find closest item to the click
@@ -99,6 +136,7 @@ class ChessBoard(tk.Tk):
         piece = self.game.identify_piece(sq)
         pawn_idx = self.game.pieces[self.game.side_to_move][PieceType.PAWN]
         friendly_pieces = self.game.occupancies[self.game.side_to_move]
+        print("friendly_pieces", friendly_pieces)
         enemy_pieces = self.game.occupancies[~self.game.side_to_move]
         king_bb = self.game.pieces[self.game.side_to_move][PieceType.KING]
         color = self.game.side_to_move
@@ -107,9 +145,16 @@ class ChessBoard(tk.Tk):
             possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
         elif piece == PieceType.BISHOP:
             possible_moves = self.move_validator.generate_legal_bishop_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+        elif piece == PieceType.ROOK:
+            possible_moves = self.move_validator.generate_legal_rook_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
         elif piece == PieceType.KNIGHT:
             possible_moves = self.move_validator.generate_legal_knight_moves(sq, friendly_pieces, enemy_pieces, king_bb)
+        elif piece == PieceType.QUEEN:
+            possible_moves = self.move_validator.generate_legal_queen_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+        elif piece == PieceType.KING:
+            possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, color, self.game.pieces)
         print("possible moves: ", possible_moves)
+        self.draw_possible_moves(possible_moves)
 
     def on_drag(self, event):
         """Calculates the movement delta and moves the piece in real time."""
@@ -127,6 +172,7 @@ class ChessBoard(tk.Tk):
 
     def on_drop(self, event):
         """Clears the drag tracking when the mouse button is released."""
+        self.hide_possible_moves()
         if event.x < 0 or event.y < 0 or event.x > self.square_size * 8 or event.y > self.square_size * 8:
             (end_x, end_y) = self.grid_snap(self.pickup_x, self.pickup_y) 
             self.canvas.moveto(self.dragged_item, end_x, end_y)
@@ -161,6 +207,9 @@ class ChessBoard(tk.Tk):
         col = int(x // self.square_size)
         row = 7 - int(y // self.square_size)
         return row * 8 + col
+
+    def get_row_col_from_sq(self, sq: int) -> (int, int):
+        return (int(sq // 8), sq % 8)
 
     def get_second_closest(canvas, x, y, dragged_item):
         # Get all items on the canvas

@@ -68,7 +68,7 @@ class MoveValidator():
         not_h = ~FILE_H & 0xFFFFFFFFFFFFFFFF
         if (color == Color.WHITE):    
             wPawnEastAttacks = pawn_bitboard << 9 & not_a
-            wPawnWestAttacks = pawn_bitboard << 7 & not_h
+            wPawnWestAttacks = pawn_bitboard << 7 & not_a
             return wPawnEastAttacks | wPawnWestAttacks
         else:
             bPawnEastAttacks = pawn_bitboard >> 7 & not_h
@@ -80,7 +80,21 @@ class MoveValidator():
             return pawn_bitboard << 8
         else:
             return pawn_bitboard >> 8
-    
+
+    def get_king_moves(self, king_bitboard: int) -> int:
+        not_a = ~FILE_A & 0xFFFFFFFFFFFFFFFF
+        not_h = ~FILE_H & 0xFFFFFFFFFFFFFFFF
+
+        anti_diag_west_attacks = king_bitboard << 9 & not_a
+        diag_east_attacks = king_bitboard << 7 & not_a
+        diag_west_attacks = king_bitboard >> 7 & not_a
+        anti_diag_east_attacks = king_bitboard >> 9 & not_h
+        forwards = king_bitboard >> 8
+        backwards = king_bitboard << 8
+        west = king_bitboard >> 1 & not_h
+        east = king_bitboard << 1 & not_a
+        return anti_diag_west_attacks | diag_east_attacks | diag_west_attacks | anti_diag_east_attacks | forwards | backwards | west | east
+
     def generate_legal_bishop_moves(self, bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a bishop"""
         legal_moves = []
@@ -183,3 +197,74 @@ class MoveValidator():
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
+    def generate_legal_rook_moves(self, rook_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
+        """Generate strictly legal moves for a rook"""
+        legal_moves = []
+        rook_bb = 1 << rook_idx
+
+        pseudo_moves = self.get_rook_moves(rook_bb, rook_idx)
+        valid_targets = pseudo_moves & ~friendly_pieces
+        while valid_targets:
+            # Isolate the lowest set bit 
+            target_bb = valid_targets & -valid_targets
+            target_idx = target_bb.bit_length() - 1
+
+            # Simulate the board state change
+            next_friendly = (friendly_pieces & ~rook_bb) | target_bb
+            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
+
+            # Check if enemy pieces can hit our king square after this move
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((rook_idx, target_idx))
+                
+            # Clear the bit to process the next move
+            valid_targets &= valid_targets - 1
+        return legal_moves
+    def generate_legal_queen_moves(self, queen_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
+        """Generate strictly legal moves for a queen"""
+        legal_moves = []
+        queen_bb = 1 << queen_idx
+
+        pseudo_moves = self.get_bishop_moves(queen_bb, queen_idx) | self.get_rook_moves(queen_bb, queen_idx)
+        valid_targets = pseudo_moves & ~friendly_pieces
+        while valid_targets:
+            # Isolate the lowest set bit 
+            target_bb = valid_targets & -valid_targets
+            target_idx = target_bb.bit_length() - 1
+
+            # Simulate the board state change
+            next_friendly = (friendly_pieces & ~queen_bb) | target_bb
+            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
+
+            # Check if enemy pieces can hit our king square after this move
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((queen_idx, target_idx))
+                
+            # Clear the bit to process the next move
+            valid_targets &= valid_targets - 1
+        return legal_moves
+    def generate_legal_king_moves(self, king_idx: int, friendly_pieces: int, enemy_pieces: int, color: Color, pieces: list[list[int]]) -> list:
+        """Generate strictly legal moves for a king"""
+        legal_moves = []
+        king_bb = 1 << king_idx
+
+        pseudo_moves = self.get_king_moves(king_bb, king_idx)
+        valid_targets = pseudo_moves & ~friendly_pieces
+        while valid_targets:
+            # Isolate the lowest set bit 
+            target_bb = valid_targets & -valid_targets
+            target_idx = target_bb.bit_length() - 1
+
+            # Simulate the board state change
+            next_friendly = (friendly_pieces & ~king_bb) | target_bb
+            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
+
+            # Check if enemy pieces can hit our king square after this move
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((king_idx, target_idx))
+                
+            # Clear the bit to process the next move
+            valid_targets &= valid_targets - 1
+        return legal_moves
+
+

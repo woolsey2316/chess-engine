@@ -112,6 +112,8 @@ class ChessGame:
                 
         if moved_piece is None:
             return False  # Illegal: No active piece on the source square
+        if move.from_sq == move.to_sq:
+            return False
 
         # Handle Captures: Check if an enemy piece resides on the target square
         for p in PieceType:
