@@ -132,27 +132,29 @@ class ChessBoard(tk.Tk):
         self.pickup_x = event.x
         self.pickup_y = event.y
         
+        us = self.game.side_to_move
+        them = Color.BLACK if us == Color.WHITE else Color.WHITE
+
         sq = self.get_square_from_gui(self.pickup_x, self.pickup_y)
         piece = self.game.identify_piece(sq)
-        pawn_idx = self.game.pieces[self.game.side_to_move][PieceType.PAWN]
-        friendly_pieces = self.game.occupancies[self.game.side_to_move]
-        print("friendly_pieces", friendly_pieces)
-        enemy_pieces = self.game.occupancies[~self.game.side_to_move]
-        king_bb = self.game.pieces[self.game.side_to_move][PieceType.KING]
-        color = self.game.side_to_move
+        pawn_idx = self.game.pieces[us][PieceType.PAWN]
+        friendly_pieces = self.game.occupancies[us]
+        enemy_pieces = self.game.occupancies[them]
+        king_bb = self.game.pieces[us][PieceType.KING]
+
         possible_moves = None
         if piece == PieceType.PAWN:
-            possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.BISHOP:
-            possible_moves = self.move_validator.generate_legal_bishop_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_bishop_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.ROOK:
-            possible_moves = self.move_validator.generate_legal_rook_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_rook_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.KNIGHT:
             possible_moves = self.move_validator.generate_legal_knight_moves(sq, friendly_pieces, enemy_pieces, king_bb)
         elif piece == PieceType.QUEEN:
-            possible_moves = self.move_validator.generate_legal_queen_moves(sq, friendly_pieces, enemy_pieces, king_bb, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_queen_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.KING:
-            possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, color, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, us, self.game.pieces)
         print("possible moves: ", possible_moves)
         self.draw_possible_moves(possible_moves)
 

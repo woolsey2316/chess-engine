@@ -11,6 +11,8 @@ FILE_B = 0x0202020202020202
 FILE_G = 0x4040404040404040
 FILE_H = 0x8080808080808080
 
+RANK_2 = 0x000000000000FF00
+RANK_7 = 0x00FF000000000000
 class MoveValidator():
     def get_knight_attacks(knight_bitboard: int) -> int:
         """Generates all pseudo-legal knight targets from a bitboard of knights."""
@@ -68,18 +70,25 @@ class MoveValidator():
         not_h = ~FILE_H & 0xFFFFFFFFFFFFFFFF
         if (color == Color.WHITE):    
             wPawnEastAttacks = pawn_bitboard << 9 & not_a
-            wPawnWestAttacks = pawn_bitboard << 7 & not_a
+            wPawnWestAttacks = pawn_bitboard << 7 & not_h
             return wPawnEastAttacks | wPawnWestAttacks
         else:
-            bPawnEastAttacks = pawn_bitboard >> 7 & not_h
-            bPawnWestAttacks = pawn_bitboard >> 9 & not_a
+            bPawnEastAttacks = pawn_bitboard >> 7 & not_a
+            bPawnWestAttacks = pawn_bitboard >> 9 & not_h
             return bPawnEastAttacks | bPawnWestAttacks
 
     def get_pawn_moves(self, pawn_bitboard: int, color: Color) -> int:
         if (color == Color.WHITE):
-            return pawn_bitboard << 8
+            one_step = pawn_bitboard << 8
+            # two moves forward if on original square
+            if pawn_bitboard & RANK_2:
+                return one_step | pawn_bitboard << 16
+            return one_step
         else:
-            return pawn_bitboard >> 8
+            one_step = pawn_bitboard >> 8
+            if pawn_bitboard & RANK_7:
+                return one_step | pawn_bitboard >> 16
+            return one_step
 
     def get_king_moves(self, king_bitboard: int) -> int:
         not_a = ~FILE_A & 0xFFFFFFFFFFFFFFFF
@@ -162,13 +171,20 @@ class MoveValidator():
     def enemy_attacks_func(self, pieces: list[list[int]], color: Color, enemy: int, friendly: int) -> int:
         attacks = 0
         for p in PieceType:
-            p_bb = pieces[~color][p]
+            them = Color.WHITE if color == Color.BLACK else Color.BLACK
+            p_bb = pieces[them][p]
             if p == PieceType.PAWN:
-                attacks |= self.get_pawn_attacks(p_bb, ~color)
+                attacks |= self.get_pawn_attacks(p_bb, them)
             elif p == PieceType.BISHOP:
                 attacks |= self.get_bishop_attacks(p_bb, enemy, friendly, color)
             elif p == PieceType.ROOK:
                 attacks |= self.get_rook_attacks(p_bb, enemy, friendly, color)
+            elif p == PieceType.QUEEN:
+                attacks |= self.get_bishop_attacks(p_bb, enemy, friendly, color) | self.get_rook_attacks(p_bb, enemy, friendly, color)
+            elif p == PieceType.KING:
+                attacks |= self.get_king_attacks(p_bb, enemy, friendly, color)
+            elif p == PieceType.KNIGHT:
+                attacks |= self.get_knight_attacks(p_bb, enemy, friendly, color)
         return attacks
 
     def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
@@ -176,7 +192,7 @@ class MoveValidator():
         legal_moves = []
         
         pawn_bb = 1 << pawn_idx
-        pseudo_attacks = self.get_pawn_attacks(pawn_bb, color) 
+        pseudo_attacks = self.get_pawn_attacks(pawn_bb, color) & enemy_pieces
         pseudo_moves = self.get_pawn_moves(pawn_bb, color)
 
         valid_targets = (pseudo_attacks | pseudo_moves) & ~friendly_pieces
@@ -197,6 +213,7 @@ class MoveValidator():
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
+    
     def generate_legal_rook_moves(self, rook_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a rook"""
         legal_moves = []
@@ -220,6 +237,7 @@ class MoveValidator():
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
+    
     def generate_legal_queen_moves(self, queen_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a queen"""
         legal_moves = []
@@ -243,6 +261,7 @@ class MoveValidator():
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
+
     def generate_legal_king_moves(self, king_idx: int, friendly_pieces: int, enemy_pieces: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a king"""
         legal_moves = []

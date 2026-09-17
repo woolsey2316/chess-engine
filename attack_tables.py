@@ -268,6 +268,47 @@ def init_attack_tables():
             occ = get_occupancy(i, RBits[sq], R_MASKS[sq])
             R_ATTACK_TABLE[R_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=True)
 
+def generate_between_masks() -> list[list[int]]:
+  # Initialize a 64x64 matrix filled with 0s
+  between_masks = [[0] * 64 for _ in range(64)]
+
+  for sq1 in range(64):
+    r1, f1 = divmod(sq1, 8)  # Rank and File of sq1
+
+    for sq2 in range(64):
+      if sq1 == sq2:
+        continue
+
+      r2, f2 = divmod(sq2, 8)  # Rank and File of sq2
+
+      dr = r2 - r1  # Rank delta
+      df = f2 - f1  # File delta
+
+      # Determine if they share a straight line (Rook) or diagonal (Bishop)
+      is_straight = dr == 0 or df == 0
+      is_diagonal = abs(dr) == abs(df)
+
+      if is_straight or is_diagonal:
+        # Normalize the step direction to -1, 0, or 1
+        step_r = (dr > 0) - (dr < 0)
+        step_f = (df > 0) - (df < 0)
+        step = step_r * 8 + step_f
+
+        # Walk along the path from sq1 to sq2 (exclusive)
+        mask = 0
+        current_sq = sq1 + step
+        while current_sq != sq2:
+          mask |= 1 << current_sq
+          current_sq += step
+
+        between_masks[sq1][sq2] = mask
+
+  return between_masks
+
+
+# Precompute the array once at engine initialization
+BETWEEN_MASKS = generate_between_masks()
+
 def print_magic_numbers():
   print("RMagic[64] = [")
   for square in range(0, 64):
