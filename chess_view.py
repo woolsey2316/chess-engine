@@ -17,6 +17,7 @@ class ChessBoard(tk.Tk):
         
         self.pieces_images = {} 
         self.possible_oval = []
+        self.attack_oval = []
         self.draw_board()
         self.load_sprites_and_pieces()
         
@@ -92,7 +93,15 @@ class ChessBoard(tk.Tk):
                         -50 - self.square_size/2,
                         fill="lightblue", outline="lightblue", width=1
                         )
+                attack_oval_id = self.canvas.create_oval(
+                        -50 + self.square_size/2,
+                        -50 + self.square_size/2,
+                        -50 - + self.square_size/2,
+                        -50 - self.square_size/2,
+                        fill="red", outline="red", width=1
+                        )
                 self.possible_oval.append(oval_id)
+                self.attack_oval.append(attack_oval_id)
 
     def grid_snap(self, x: int, y: int) -> (int, int):
         # Grid-snapping logic here to snap to a chess board square
@@ -102,6 +111,19 @@ class ChessBoard(tk.Tk):
         end_y = end_row * self.square_size
         return (end_x, end_y)
     
+    def draw_enemy_attacks(self, attacks: int):
+        square = 0
+        while attacks > 0:
+            if attacks & 1:  # Checks if the lowest bit is 1
+                (row, col) = self.get_row_col_from_sq(square)
+                self.move_oval_to(
+                    self.attack_oval[square],
+                    col * self.square_size,
+                    (7 - row) * self.square_size
+                    ) 
+            attacks >>= 1    # Shift right by 1 bit            
+            square += 1
+
     def draw_possible_moves(self, possible_moves):
         for move in possible_moves or []:
             (row, col) = self.get_row_col_from_sq(move[1])
@@ -121,7 +143,11 @@ class ChessBoard(tk.Tk):
 
     def hide_possible_moves(self):
         for oval_id in self.possible_oval:
-            self.move_oval_to(oval_id, -50, -50)
+            self.move_oval_to(oval_id, -100, -50)
+    
+    def hide_enemy_attacks(self):
+        for oval_id in self.attack_oval:
+            self.move_oval_to(oval_id, -100, -50)
 
     def on_start_drag(self, event):
         """Remembers the starting coordinates where the user clicked."""
@@ -156,6 +182,7 @@ class ChessBoard(tk.Tk):
         elif piece == PieceType.KING:
             possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, us, self.game.pieces)
         self.draw_possible_moves(possible_moves)
+        self.draw_enemy_attacks(self.move_validator.enemy_attacks_func(self.game.pieces, us, enemy_pieces, friendly_pieces))
 
     def on_drag(self, event):
         """Calculates the movement delta and moves the piece in real time."""
@@ -174,6 +201,7 @@ class ChessBoard(tk.Tk):
     def on_drop(self, event):
         """Clears the drag tracking when the mouse button is released."""
         self.hide_possible_moves()
+        self.hide_enemy_attacks()
         if event.x < 0 or event.y < 0 or event.x > self.square_size * 8 or event.y > self.square_size * 8:
             (end_x, end_y) = self.grid_snap(self.pickup_x, self.pickup_y) 
             self.canvas.moveto(self.dragged_item, end_x, end_y)
