@@ -14,7 +14,7 @@ FILE_H = 0x8080808080808080
 RANK_2 = 0x000000000000FF00
 RANK_7 = 0x00FF000000000000
 class MoveValidator():
-    def get_knight_attacks(knight_bitboard: int) -> int:
+    def get_knight_attacks(self, knight_bitboard: int) -> int:
         """Generates all pseudo-legal knight targets from a bitboard of knights."""
         attacks = 0
         # Clear columns to prevent wrapping around the board edges
@@ -35,13 +35,13 @@ class MoveValidator():
 
         return attacks & 0xFFFFFFFFFFFFFFFF
 
-    def generate_legal_knight_moves(knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int) -> list:
+    def generate_legal_knight_moves(self, knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generates strictly legal moves for a single knight."""
         legal_moves = []
         knight_bb = 1 << knight_idx
         
         # 1. Get pseudo-legal targets (anywhere the piece can structurally jump)
-        pseudo_attacks = get_knight_attacks(knight_bb)
+        pseudo_attacks = self.get_knight_attacks(knight_bb)
         
         # 2. Remove targets occupied by friendly pieces
         valid_targets = pseudo_attacks & ~friendly_pieces
@@ -57,7 +57,7 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
             
             # Check if enemy pieces can hit our king square after this move
-            if not (enemy_attacks_func(next_enemy, next_friendly) & king_idx):
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
                 legal_moves.append((knight_idx, target_idx))
                 
             # Clear the bit to process the next move
@@ -102,7 +102,22 @@ class MoveValidator():
         backwards = king_bitboard << 8
         west = king_bitboard >> 1 & not_h
         east = king_bitboard << 1 & not_a
-        return anti_diag_west_attacks | diag_east_attacks | diag_west_attacks | anti_diag_east_attacks | forwards | backwards | west | east
+
+        return (anti_diag_west_attacks | diag_east_attacks | diag_west_attacks | anti_diag_east_attacks | forwards | backwards | west | east) & 0xFFFFFFFFFFFFFFFF
+
+    def get_king_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
+        b = occ
+        pseudo_moves = 0
+        valid_targets = 0
+        while b > 0:
+            king_bb = b & 1
+
+            pseudo_moves |= self.get_king_moves(king_bb)
+
+            valid_targets |= pseudo_moves & ~friendly
+
+            b >>= 1
+        return valid_targets
 
     def generate_legal_bishop_moves(self, bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a bishop"""
@@ -184,7 +199,7 @@ class MoveValidator():
             elif p == PieceType.KING:
                 attacks |= self.get_king_attacks(p_bb, enemy, friendly, color)
             elif p == PieceType.KNIGHT:
-                attacks |= self.get_knight_attacks(p_bb, enemy, friendly, color)
+                attacks |= self.get_knight_attacks(p_bb)
         return attacks
 
     def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
@@ -267,7 +282,7 @@ class MoveValidator():
         legal_moves = []
         king_bb = 1 << king_idx
 
-        pseudo_moves = self.get_king_moves(king_bb, king_idx)
+        pseudo_moves = self.get_king_moves(king_bb)
         valid_targets = pseudo_moves & ~friendly_pieces
         while valid_targets:
             # Isolate the lowest set bit 
@@ -279,7 +294,7 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
 
             # Check if enemy pieces can hit our king square after this move
-            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & target_bb):
                 legal_moves.append((king_idx, target_idx))
                 
             # Clear the bit to process the next move

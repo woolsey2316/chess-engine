@@ -150,7 +150,7 @@ class ChessBoard(tk.Tk):
         elif piece == PieceType.ROOK:
             possible_moves = self.move_validator.generate_legal_rook_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.KNIGHT:
-            possible_moves = self.move_validator.generate_legal_knight_moves(sq, friendly_pieces, enemy_pieces, king_bb)
+            possible_moves = self.move_validator.generate_legal_knight_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.QUEEN:
             possible_moves = self.move_validator.generate_legal_queen_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.KING:
