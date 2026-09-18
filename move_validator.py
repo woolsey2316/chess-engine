@@ -1,5 +1,5 @@
 from chess_game import Color, PieceType
-from attack_tables import B_ATTACK_TABLE, R_ATTACK_TABLE, R_MASKS, B_MASKS, BBits, RBits, B_OFFSETS, R_OFFSETS
+from attack_tables import B_ATTACK_TABLE, R_ATTACK_TABLE, R_MASKS, B_MASKS, BBits, RBits, B_OFFSETS, R_OFFSETS, BETWEEN_MASKS
 from magic_numbers import RMagic, BMagic
 
 # Representation of a 64-bit board using standard integer bitboards
@@ -131,6 +131,12 @@ class MoveValidator():
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
 
+            # Check if path between src and dest is clear
+            between = BETWEEN_MASKS[bishop_idx][target_idx]
+            if (between & (enemy_pieces | friendly_pieces)):
+                valid_targets &= valid_targets - 1
+                continue
+
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~bishop_bb) | target_bb
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
@@ -217,6 +223,12 @@ class MoveValidator():
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
 
+            # Check if path between src and dest is clear
+            between = BETWEEN_MASKS[pawn_idx][target_idx]
+            if (between & (enemy_pieces | friendly_pieces)):
+                valid_targets &= valid_targets - 1
+                continue
+
              # Simulate the board state change
             next_friendly = (friendly_pieces & ~pawn_bb) | target_bb
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
@@ -241,6 +253,12 @@ class MoveValidator():
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
 
+            # Check if path between src and dest is clear
+            between = BETWEEN_MASKS[rook_idx][target_idx]
+            if (between & (enemy_pieces | friendly_pieces)):
+                valid_targets &= valid_targets - 1
+                continue
+
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~rook_bb) | target_bb
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
@@ -264,6 +282,12 @@ class MoveValidator():
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
+
+            # Check if path between src and dest is clear
+            between = BETWEEN_MASKS[queen_idx][target_idx]
+            if (between & (enemy_pieces | friendly_pieces)):
+                valid_targets &= valid_targets - 1
+                continue
 
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~queen_bb) | target_bb

@@ -155,7 +155,6 @@ class ChessBoard(tk.Tk):
             possible_moves = self.move_validator.generate_legal_queen_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.KING:
             possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, us, self.game.pieces)
-        print("possible moves: ", possible_moves)
         self.draw_possible_moves(possible_moves)
 
     def on_drag(self, event):
