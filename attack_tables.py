@@ -186,7 +186,7 @@ BBits = [
 ];
 
 def generate_attacks_on_the_fly(sq: int, block: int, is_rook: bool) -> int:
-    r, c = sq // 8, sq % 8
+    r, c = sq >> 3, sq & 7
     attacks = 0
     dirs = [(1,0), (-1,0), (0,1), (0,-1)] if is_rook else [(1,1), (1,-1), (-1,1), (-1,-1)]
     
@@ -203,7 +203,7 @@ def generate_attacks_on_the_fly(sq: int, block: int, is_rook: bool) -> int:
 
 def generate_mask(sq: int, is_rook: bool) -> int:
     # Generates relevant occupancy mask (excluding board edges)
-    r, c = sq // 8, sq % 8
+    r, c = sq >> 3, sq & 7
     mask = 0
     dirs = [(1,0), (-1,0), (0,1), (0,-1)] if is_rook else [(1,1), (1,-1), (-1,1), (-1,-1)]
     
@@ -310,11 +310,11 @@ def generate_between_masks() -> list[list[int]]:
 BETWEEN_MASKS = generate_between_masks()
 
 def print_magic_numbers():
-  print("RMagic[64] = [")
+  print("RMagic = [")
   for square in range(0, 64):
-      print(f"{find_magic(square, BBits[square], 1)},")
+      print(f"{find_magic(square, RBits[square], 0)},")
   print("];\n")
-  print("BMagic[64] = [\n")
+  print("BMagic = [\n")
   for square in range(0, 64):
     print(f"{find_magic(square, BBits[square], 1)},")
   print("];\n")

@@ -94,7 +94,7 @@ class MoveValidator():
                 return one_step | pawn_bitboard >> 16
             return one_step
 
-    def get_king_moves(self, king_bitboard: int) -> int:
+    def get_king_moves(self, king_bitboard: int, friendly: int) -> int:
         not_a = ~FILE_A & 0xFFFFFFFFFFFFFFFF
         not_h = ~FILE_H & 0xFFFFFFFFFFFFFFFF
 
@@ -107,39 +107,24 @@ class MoveValidator():
         west = king_bitboard >> 1 & not_h
         east = king_bitboard << 1 & not_a
 
-        return (anti_diag_west_attacks | diag_east_attacks | diag_west_attacks | anti_diag_east_attacks | forwards | backwards | west | east) & 0xFFFFFFFFFFFFFFFF
+        return (anti_diag_west_attacks | diag_east_attacks | diag_west_attacks | anti_diag_east_attacks | forwards | backwards | west | east) & ~friendly & 0xFFFFFFFFFFFFFFFF
 
-    def get_king_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
-        b = occ
-        pseudo_moves = 0
-        valid_targets = 0
-        while b > 0:
-            king_bb = b & 1
+    def get_king_attacks(self, occ: int, friendly: int):
+        pseudo_moves = self.get_king_moves(occ, friendly)
 
-            pseudo_moves |= self.get_king_moves(king_bb)
-
-            valid_targets |= pseudo_moves & ~friendly
-
-            b >>= 1
-        return valid_targets & 0xFFFFFFFFFFFFFFFF
+        return pseudo_moves & 0xFFFFFFFFFFFFFFFF
 
     def generate_legal_bishop_moves(self, bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a bishop"""
         legal_moves = []
         bishop_bb = 1 << bishop_idx
 
-        pseudo_moves = self.get_bishop_moves(bishop_bb, bishop_idx)
+        pseudo_moves = self.get_bishop_moves(friendly_pieces | enemy_pieces, bishop_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
-
-            # Check if path between src and dest is clear
-            between = BETWEEN_MASKS[bishop_idx][target_idx]
-            if (between & (enemy_pieces | friendly_pieces)):
-                valid_targets &= valid_targets - 1
-                continue
 
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~bishop_bb) | target_bb
@@ -148,6 +133,8 @@ class MoveValidator():
             # Check if enemy pieces can hit our king square after this move
             if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
                 legal_moves.append((bishop_idx, target_idx))
+            else:
+                print("piece attacks king")
                 
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
@@ -156,10 +143,11 @@ class MoveValidator():
     def get_bishop_moves(self, occ: int, sq: int) -> int:
         occ   &= B_MASKS[sq]
         occ   *= BMagic[sq]
+        occ   &= 0xFFFFFFFFFFFFFFFF
         occ  >>= 64 - BBits[sq]
         return B_ATTACK_TABLE[B_OFFSETS[sq] + occ]
 
-    def get_bishop_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
+    def get_bishop_attacks(self, occ: int, board: int, color: Color):
         b = occ
         pseudo_moves = 0
         valid_targets = 0
@@ -172,14 +160,13 @@ class MoveValidator():
                 bishop_bb = 1 << bishop_idx
                 
                 # Calculate moves from this specific square
-                pseudo_moves = self.get_bishop_moves(bishop_bb, bishop_idx)
-                valid_targets |= pseudo_moves & ~friendly
-
+                pseudo_moves = self.get_bishop_moves(board, bishop_idx)
+                valid_targets |= pseudo_moves 
             b >>= 1         # Move to the next bit
             bishop_idx += 1 # Move to the next chessboard index       
         return valid_targets & 0xFFFFFFFFFFFFFFFF
 
-    def get_rook_attacks(self, occ: int, enemy: int, friendly: int, color: Color):
+    def get_rook_attacks(self, occ: int, board: int, color: Color):
         b = occ
         pseudo_moves = 0
         valid_targets = 0
@@ -191,16 +178,16 @@ class MoveValidator():
                 rook_bb = 1 << rook_idx
                 
                 # Calculate moves from this specific square
-                pseudo_moves = self.get_rook_moves(rook_bb, rook_idx)
-                valid_targets |= pseudo_moves & ~friendly
-
-            b >>= 1         # Move to the next bit
+                pseudo_moves = self.get_rook_moves(board, rook_idx)
+                valid_targets |= pseudo_moves
+            b >>= 1       # Move to the next bit
             rook_idx += 1 # Move to the next chessboard index       
         return valid_targets & 0xFFFFFFFFFFFFFFFF
         
     def get_rook_moves(self, occ: int, sq: int) -> int:
         occ   &= R_MASKS[sq]
         occ   *= RMagic[sq]
+        occ   &= 0xFFFFFFFFFFFFFFFF
         occ  >>= 64 - RBits[sq]
         return R_ATTACK_TABLE[R_OFFSETS[sq] + occ]
 
@@ -214,13 +201,13 @@ class MoveValidator():
             if p == PieceType.PAWN:
                 attacks |= self.get_pawn_attacks(p_bb, them)
             elif p == PieceType.BISHOP:
-                attacks |= self.get_bishop_attacks(p_bb, friendly, enemy, color)
+                attacks |= self.get_bishop_attacks(p_bb, friendly | enemy, color)
             elif p == PieceType.ROOK:
-                attacks |= self.get_rook_attacks(p_bb, friendly, enemy, color)
+                attacks |= self.get_rook_attacks(p_bb, friendly | enemy, color)
             elif p == PieceType.QUEEN:
-                attacks |= self.get_bishop_attacks(p_bb, friendly, enemy, color) | self.get_rook_attacks(p_bb, friendly, enemy, color)
+                attacks |= self.get_bishop_attacks(p_bb, friendly | enemy, color) | self.get_rook_attacks(p_bb, friendly | enemy, color)
             elif p == PieceType.KING:
-                attacks |= self.get_king_attacks(p_bb, friendly, enemy, color)
+                attacks |= self.get_king_attacks(p_bb, enemy)
             elif p == PieceType.KNIGHT:
                 attacks |= self.get_knight_attacks(p_bb)
         return attacks
@@ -240,12 +227,6 @@ class MoveValidator():
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
 
-            # Check if path between src and dest is clear
-            between = BETWEEN_MASKS[pawn_idx][target_idx]
-            if (between & (enemy_pieces | friendly_pieces)):
-                valid_targets &= valid_targets - 1
-                continue
-
              # Simulate the board state change
             next_friendly = (friendly_pieces & ~pawn_bb) | target_bb
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
@@ -263,18 +244,12 @@ class MoveValidator():
         legal_moves = []
         rook_bb = 1 << rook_idx
 
-        pseudo_moves = self.get_rook_moves(rook_bb, rook_idx)
+        pseudo_moves = self.get_rook_moves(friendly_pieces | enemy_pieces, rook_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
-
-            # Check if path between src and dest is clear
-            between = BETWEEN_MASKS[rook_idx][target_idx]
-            if (between & (enemy_pieces | friendly_pieces)):
-                valid_targets &= valid_targets - 1
-                continue
 
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~rook_bb) | target_bb
@@ -283,7 +258,9 @@ class MoveValidator():
             # Check if enemy pieces can hit our king square after this move
             if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
                 legal_moves.append((rook_idx, target_idx))
-                
+            else:
+                print("piece attacks king")
+
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
@@ -293,18 +270,12 @@ class MoveValidator():
         legal_moves = []
         queen_bb = 1 << queen_idx
 
-        pseudo_moves = self.get_bishop_moves(queen_bb, queen_idx) | self.get_rook_moves(queen_bb, queen_idx)
+        pseudo_moves = self.get_bishop_moves(friendly_pieces | enemy_pieces, queen_idx) | self.get_rook_moves(friendly_pieces | enemy_pieces, queen_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
-
-            # Check if path between src and dest is clear
-            between = BETWEEN_MASKS[queen_idx][target_idx]
-            if (between & (enemy_pieces | friendly_pieces)):
-                valid_targets &= valid_targets - 1
-                continue
 
             # Simulate the board state change
             next_friendly = (friendly_pieces & ~queen_bb) | target_bb
@@ -323,8 +294,8 @@ class MoveValidator():
         legal_moves = []
         king_bb = 1 << king_idx
 
-        pseudo_moves = self.get_king_moves(king_bb)
-        valid_targets = pseudo_moves & ~friendly_pieces
+        pseudo_moves = self.get_king_moves(king_bb, friendly_pieces)
+        valid_targets = pseudo_moves
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets

@@ -182,7 +182,7 @@ class ChessBoard(tk.Tk):
         elif piece == PieceType.KING:
             possible_moves = self.move_validator.generate_legal_king_moves(sq, friendly_pieces, enemy_pieces, us, self.game.pieces)
         self.draw_possible_moves(possible_moves)
-        self.draw_enemy_attacks(self.move_validator.enemy_attacks_func(self.game.pieces, us, enemy_pieces, friendly_pieces))
+        # self.draw_enemy_attacks(self.move_validator.enemy_attacks_func(self.game.pieces, us, enemy_pieces, friendly_pieces))
 
     def on_drag(self, event):
         """Calculates the movement delta and moves the piece in real time."""
