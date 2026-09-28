@@ -82,18 +82,19 @@ class MoveValidator():
         # Strictly truncate to a 64-bit unsigned int before returning
         return result & 0xFFFFFFFFFFFFFFFF
 
-    def get_pawn_moves(self, pawn_bitboard: int, color: Color) -> int:
-        if (color == Color.WHITE):
-            one_step = pawn_bitboard << 8
-            # two moves forward if on original square
-            if pawn_bitboard & RANK_2:
-                return one_step | pawn_bitboard << 16
+    def get_pawn_moves(self, pawn_bitboard: int, color: Color, occupied: int = 0) -> int:
+        """Quiet pawn pushes. A single step must be empty, and a double step also needs the square in between empty."""
+        if color == Color.WHITE:
+            one_step = (pawn_bitboard << 8) & ~occupied & 0xFFFFFFFFFFFFFFFF
+            if one_step and (pawn_bitboard & RANK_2):
+                two_step = (pawn_bitboard << 16) & ~occupied & 0xFFFFFFFFFFFFFFFF
+                return one_step | two_step
             return one_step
-        else:
-            one_step = pawn_bitboard >> 8
-            if pawn_bitboard & RANK_7:
-                return one_step | pawn_bitboard >> 16
-            return one_step
+        one_step = (pawn_bitboard >> 8) & ~occupied
+        if one_step and (pawn_bitboard & RANK_7):
+            two_step = (pawn_bitboard >> 16) & ~occupied
+            return one_step | two_step
+        return one_step
 
     def get_king_moves(self, king_bitboard: int, friendly: int) -> int:
         not_a = ~FILE_A & 0xFFFFFFFFFFFFFFFF
@@ -120,12 +121,8 @@ class MoveValidator():
         legal_moves = []
         bishop_bb = 1 << bishop_idx
 
-        print("occ")
-        print_binary_chessboard(friendly_pieces | enemy_pieces)
         pseudo_moves = self.get_bishop_moves(friendly_pieces | enemy_pieces, bishop_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
-        print("valid targets")
-        print_binary_chessboard(valid_targets)
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
@@ -215,24 +212,34 @@ class MoveValidator():
                 attacks |= self.get_knight_attacks(p_bb)
         return attacks
 
-    def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
-        """Generate strictly legal moves for a pawn"""
+    def generate_legal_pawn_moves(self, pawn_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]], en_passant_sq: int | None = None) -> list:
+        """Generate strictly legal moves for a pawn, including blocked pushes and en passant."""
         legal_moves = []
         
         pawn_bb = 1 << pawn_idx
-        pseudo_attacks = self.get_pawn_attacks(pawn_bb, color) & enemy_pieces
-        pseudo_moves = self.get_pawn_moves(pawn_bb, color)
+        occupied = friendly_pieces | enemy_pieces
+        attacks = self.get_pawn_attacks(pawn_bb, color)
+        pushes = self.get_pawn_moves(pawn_bb, color, occupied)
+        captures = attacks & enemy_pieces
 
-        valid_targets = (pseudo_attacks | pseudo_moves) & ~friendly_pieces
+        ep_bb = 0
+        if en_passant_sq is not None and (attacks & (1 << en_passant_sq)):
+            ep_bb = 1 << en_passant_sq
+
+        valid_targets = pushes | captures | ep_bb
 
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
             target_idx = target_bb.bit_length() - 1
 
-             # Simulate the board state change
+            # Simulate the board state change. En passant captures the pawn beside the landing square.
             next_friendly = (friendly_pieces & ~pawn_bb) | target_bb
-            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
+            if ep_bb and target_bb == ep_bb:
+                captured_bb = ep_bb >> 8 if color == Color.WHITE else ep_bb << 8
+                next_enemy = enemy_pieces & ~captured_bb
+            else:
+                next_enemy = enemy_pieces & ~target_bb
 
             # Check if enemy pieces can hit our king square after this move
             if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):

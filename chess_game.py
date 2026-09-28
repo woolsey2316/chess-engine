@@ -115,15 +115,26 @@ class ChessGame:
         if move.from_sq == move.to_sq:
             return False
 
-        # Handle Captures: Check if an enemy piece resides on the target square
-        for p in PieceType:
-            if self.get_bit(self.pieces[them][p], move.to_sq):
-                self.pieces[them][p] = self.clear_bit(self.pieces[them][p], move.to_sq)
-                break
+        ep_sq = self.en_passant_sq
+        self.en_passant_sq = None
+
+        # En passant captures the pawn that just double-stepped, which is not on the landing square
+        if moved_piece == PieceType.PAWN and ep_sq is not None and move.to_sq == ep_sq:
+            captured_sq = move.to_sq - 8 if us == Color.WHITE else move.to_sq + 8
+            self.pieces[them][PieceType.PAWN] = self.clear_bit(self.pieces[them][PieceType.PAWN], captured_sq)
+        else:
+            # Handle Captures: Check if an enemy piece resides on the target square
+            for p in PieceType:
+                if self.get_bit(self.pieces[them][p], move.to_sq):
+                    self.pieces[them][p] = self.clear_bit(self.pieces[them][p], move.to_sq)
+                    break
 
         # Move the piece inside its relative bitboard
         self.pieces[us][moved_piece] = self.clear_bit(self.pieces[us][moved_piece], move.from_sq)
         self.pieces[us][moved_piece] = self.set_bit(self.pieces[us][moved_piece], move.to_sq)
+
+        if moved_piece == PieceType.PAWN and abs(move.to_sq - move.from_sq) == 16:
+            self.en_passant_sq = (move.from_sq + move.to_sq) // 2
 
         # Synchronize structural changes
         self.update_occupancies()

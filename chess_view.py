@@ -170,7 +170,7 @@ class ChessBoard(tk.Tk):
 
         possible_moves = None
         if piece == PieceType.PAWN:
-            possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
+            possible_moves = self.move_validator.generate_legal_pawn_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces, self.game.en_passant_sq)
         elif piece == PieceType.BISHOP:
             possible_moves = self.move_validator.generate_legal_bishop_moves(sq, friendly_pieces, enemy_pieces, king_bb, us, self.game.pieces)
         elif piece == PieceType.ROOK:
@@ -220,12 +220,24 @@ class ChessBoard(tk.Tk):
             self.canvas.moveto(self.secondClosestPiece, 1000, 100)
         (end_x, end_y) = self.grid_snap(event.x, event.y)
         self.canvas.moveto(self.dragged_item, end_x, end_y)
-        
+
+        us = self.game.side_to_move
+        ep_sq = self.game.en_passant_sq
         self.game.make_move(move)
+        if ep_sq is not None and move.to_sq == ep_sq:
+            captured_sq = move.to_sq - 8 if us == Color.WHITE else move.to_sq + 8
+            self.hide_piece_on_square(captured_sq)
         
         # self.game.print_board()
         
         self.dragged_item = None
+
+    def hide_piece_on_square(self, sq: int):
+        for item in self.canvas.find_withtag("piece"):
+            coords = self.canvas.coords(item)
+            if coords and self.get_square_from_gui(coords[0], coords[1]) == sq:
+                self.canvas.moveto(item, 1000, 100)
+                return
 
     def is_piece_captured(self, toSq, coords):
         col = int(coords[0] // self.square_size)

@@ -173,22 +173,6 @@ BBits = [
   6, 5, 5, 5, 5, 5, 5, 6
 ];
 
-def generate_attacks_on_the_fly(sq: int, block: int, is_rook: bool) -> int:
-    r, c = sq >> 3, sq & 7
-    attacks = 0
-    dirs = [(1,0), (-1,0), (0,1), (0,-1)] if is_rook else [(1,1), (1,-1), (-1,1), (-1,-1)]
-    
-    for dr, dc in dirs:
-        nr, nc = r + dr, c + dc
-        # Real attacks can hit the true board edges
-        while 0 <= nr < 8 and 0 <= nc < 8:
-            attacks |= (1 << (nr * 8 + nc))
-            if block & (1 << (nr * 8 + nc)):
-                break  # Sliding ray is blocked by a piece
-            nr += dr
-            nc += dc
-    return attacks
-
 def generate_mask(sq: int, is_rook: bool) -> int:
     # Relevant blockers only. The last square of a ray is always reached if the ray gets that far, so it is not a blocker bit.
     r, c = sq >> 3, sq & 7
@@ -245,7 +229,7 @@ def init_attack_tables():
         for i in range(b_patterns):
             occ = get_occupancy(i, B_MASKS[sq])
             magic_index = ((occ * BMagic[sq]) & 0xFFFFFFFFFFFFFFFF) >> (64 - BBits[sq])
-            B_ATTACK_TABLE[B_OFFSETS[sq] + magic_index] = generate_attacks_on_the_fly(sq, occ, is_rook=False)
+            B_ATTACK_TABLE[B_OFFSETS[sq] + magic_index] = batt(sq, occ)
 
             
         # --- Populate Rook Flat Table ---
@@ -301,7 +285,7 @@ def print_magic_numbers():
   for square in range(0, 64):
       print(f"{find_magic(square, RBits[square], 0)},")
   print("];\n")
-  print("BMagic = [\n")
+  print("BMagic = [")
   for square in range(0, 64):
     print(f"{find_magic(square, BBits[square], 1)},")
   print("];\n")
