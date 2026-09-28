@@ -145,16 +145,9 @@ class MoveValidator():
 
     def get_bishop_moves(self, occ: int, sq: int) -> int:
         occ   &= B_MASKS[sq]
-        print("masked occ")
-        print_binary_chessboard(occ)
         occ   *= BMagic[sq]
-        print("Magic Indexed")
-        print_binary_chessboard(occ)
         occ   &= 0xFFFFFFFFFFFFFFFF
         occ  >>= 64 - BBits[sq]
-        print("shifted index")
-        print_binary_chessboard(occ)
-        print("sq: ", sq)
         return B_ATTACK_TABLE[B_OFFSETS[sq] + occ]
 
     def get_bishop_attacks(self, occ: int, board: int, color: Color):

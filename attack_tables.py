@@ -3,7 +3,6 @@ import json
 import random
 # sliding_attack_table = json.loads(SLIDING_ATTACK)
 from magic_numbers import RMagic, BMagic
-from utils import print_binary_chessboard
 def random_uint64():
     # Natively generates a random number up to 64 bits wide
     return random.getrandbits(64)
@@ -93,24 +92,28 @@ def ratt(sq: int, block: int) -> int:
 def batt(sq: int, block: int) -> int:
   result = 0
   rk, fl = int(sq/8), sq%8
-  f = fl+1
-  for r in range(rk+1, 8):
+  r, f = rk + 1, fl + 1
+  while r <= 7 and f <= 7:
     result |= (1 << (f + r*8))
-    if(block & (1 << (f + r * 8))): break
-  f = fl-1
-  for r in range(rk+1, 8):
+    if block & (1 << (f + r*8)): break
+    r += 1
+    f += 1
+  r, f = rk + 1, fl - 1
+  while r <= 7 and f >= 0:
     result |= (1 << (f + r*8))
-    if(block & (1 << (f + r * 8))): break
+    if block & (1 << (f + r*8)): break
+    r += 1
+    f -= 1
   r, f = rk - 1, fl + 1
   while r >= 0 and f <= 7:
     result |= (1 << (f + r*8))
-    if(block & (1 << (f + r * 8))): break
+    if block & (1 << (f + r*8)): break
     r -= 1
     f += 1
-  r, f = rk-1, fl-1
+  r, f = rk - 1, fl - 1
   while r >= 0 and f >= 0:
     result |= (1 << (f + r*8))
-    if(block & (1 << (f + r * 8))): break
+    if block & (1 << (f + r*8)): break
     r -= 1
     f -= 1
   return result
@@ -187,17 +190,19 @@ def generate_attacks_on_the_fly(sq: int, block: int, is_rook: bool) -> int:
     return attacks
 
 def generate_mask(sq: int, is_rook: bool) -> int:
-    # Generates relevant occupancy mask (excluding board edges)
+    # Relevant blockers only. The last square of a ray is always reached if the ray gets that far, so it is not a blocker bit.
     r, c = sq >> 3, sq & 7
     mask = 0
     dirs = [(1,0), (-1,0), (0,1), (0,-1)] if is_rook else [(1,1), (1,-1), (-1,1), (-1,-1)]
-    
+
     for dr, dc in dirs:
         nr, nc = r + dr, c + dc
-        while 0 < nr < 7 and 0 < nc < 7:
-            mask |= (1 << (nr * 8 + nc))
-            nr += dr
-            nc += dc
+        while 0 <= nr < 8 and 0 <= nc < 8:
+            next_r, next_c = nr + dr, nc + dc
+            if not (0 <= next_r < 8 and 0 <= next_c < 8):
+                break
+            mask |= 1 << (nr * 8 + nc)
+            nr, nc = next_r, next_c
     return mask
 
 def get_occupancy(index: int, mask: int) -> int:
@@ -239,25 +244,16 @@ def init_attack_tables():
         b_patterns = 1 << BBits[sq]
         for i in range(b_patterns):
             occ = get_occupancy(i, B_MASKS[sq])
-            if sq == 58:
-                print("i: ", i)
-                print_binary_chessboard(i)
-                print("occ")
-                print_binary_chessboard(occ)
-            # If using proper magic hashes: 
-            # magic_index = (occ * BMagic[sq] & 0xFFFFFFFFFFFFFFFF) >> (64 - BBits[sq])
-            # Since this is initialization, standard sequential indexing maps directly into the subset blocks
-            B_ATTACK_TABLE[B_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=False)
-            if sq == 58:
-                print("attack ray:")
-                print_binary_chessboard(B_ATTACK_TABLE[B_OFFSETS[sq] + i])
+            magic_index = ((occ * BMagic[sq]) & 0xFFFFFFFFFFFFFFFF) >> (64 - BBits[sq])
+            B_ATTACK_TABLE[B_OFFSETS[sq] + magic_index] = generate_attacks_on_the_fly(sq, occ, is_rook=False)
 
             
         # --- Populate Rook Flat Table ---
         r_patterns = 1 << RBits[sq]
         for i in range(r_patterns):
             occ = get_occupancy(i, R_MASKS[sq])
-            R_ATTACK_TABLE[R_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=True)
+            magic_index = ((occ * RMagic[sq]) & 0xFFFFFFFFFFFFFFFF) >> (64 - RBits[sq])
+            R_ATTACK_TABLE[R_OFFSETS[sq] + magic_index] = ratt(sq, occ)
 
 def generate_between_masks() -> list[list[int]]:
   # Initialize a 64x64 matrix filled with 0s
