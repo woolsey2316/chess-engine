@@ -223,7 +223,7 @@ class ChessBoard(tk.Tk):
         
         self.game.make_move(move)
         
-        self.game.print_board()
+        # self.game.print_board()
         
         self.dragged_item = None
 

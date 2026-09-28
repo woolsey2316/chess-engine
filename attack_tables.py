@@ -2,7 +2,8 @@
 import json
 import random
 # sliding_attack_table = json.loads(SLIDING_ATTACK)
-
+from magic_numbers import RMagic, BMagic
+from utils import print_binary_chessboard
 def random_uint64():
     # Natively generates a random number up to 64 bits wide
     return random.getrandbits(64)
@@ -17,36 +18,20 @@ def count_1s(b):
     b &= b - 1
   return r
 
-# The 64-element lookup table matching your exact hash function (fold * 0x783a9b23) >> 26
-BitTable = [
-    63,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, 31, 
-    32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 
-    48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,  2
-]
+def pop_1st_bit(m: int) -> tuple[int, int]:
+    """Finds the index of the lowest set bit and clears it from the mask."""
+    lsb = m & -m          # Isolate the lowest set bit
+    j = lsb.bit_length() - 1  # Get its 0-indexed position
+    m &= m - 1            # Clear the lowest set bit
+    return j, m
 
-def pop_1st_bit(bb: int) -> int:
-    # Ensure the input fits inside a standard unsigned 64-bit integer
-    bb &= 0xffffffffffffffff
-    if bb == 0:
-        return -1 # Handle empty bitboard edge case
-        
-    b = bb ^ (bb - 1)
-    fold = ((b & 0xffffffff) ^ (b >> 32))
-    
-    # Python integers don't overflow automatically; we must manually mask 
-    # to emulate 32-bit multiplication wrapping
-    hash_value = ((fold * 0x783a9b23) & 0xffffffff) >> 26
-    
-    return BitTable[hash_value]
-
-def index_to_uint64(index, bits, m):
-  result = 0;
-  for i in range(0, bits): 
-    j = pop_1st_bit(m);
-    if (index & (1 << i)):
-        result |= (1 << j);
-  return result;
+def index_to_uint64(index: int, bits: int, m: int) -> int:
+    result = 0
+    for i in range(0, bits):
+        j, m = pop_1st_bit(m)  # Unpack index and updated mask
+        if index & (1 << i):
+            result |= (1 << j)
+    return result
 
 def rmask(sq: int):
   result = 0
@@ -215,23 +200,20 @@ def generate_mask(sq: int, is_rook: bool) -> int:
             nc += dc
     return mask
 
-def get_occupancy(index: int, bits_count: int, mask: int) -> int:
+def get_occupancy(index: int, mask: int) -> int:
     occupancy = 0
-    # Create a copy so we don't destroy the reference mask
-    temp_mask = mask 
+    temp_mask = mask
+    i = 0
     
-    for i in range(bits_count):
-        if temp_mask == 0:
-            break
-            
-        # Get Least Significant 1 Bit (LS1B) index safely
-        square = (temp_mask & -temp_mask).bit_length() - 1  
-        temp_mask &= temp_mask - 1                          # Clear LS1B
+    # Loop directly until temp_mask is completely emptied
+    while temp_mask:
+        square = (temp_mask & -temp_mask).bit_length() - 1
+        temp_mask &= temp_mask - 1  # Clear LS1B
         
-        # If the i-th bit of our index permutation is set, map it to the board square
         if index & (1 << i):
             occupancy |= (1 << square)
-            
+        i += 1
+        
     return occupancy
 # Store structural configurations
 B_MASKS = [0] * 64
@@ -256,16 +238,25 @@ def init_attack_tables():
         # --- Populate Bishop Flat Table ---
         b_patterns = 1 << BBits[sq]
         for i in range(b_patterns):
-            occ = get_occupancy(i, BBits[sq], B_MASKS[sq])
+            occ = get_occupancy(i, B_MASKS[sq])
+            if sq == 58:
+                print("i: ", i)
+                print_binary_chessboard(i)
+                print("occ")
+                print_binary_chessboard(occ)
             # If using proper magic hashes: 
-            # magic_index = (occ * B_MAGICS[sq]) >> (64 - BBits[sq])
+            # magic_index = (occ * BMagic[sq] & 0xFFFFFFFFFFFFFFFF) >> (64 - BBits[sq])
             # Since this is initialization, standard sequential indexing maps directly into the subset blocks
             B_ATTACK_TABLE[B_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=False)
+            if sq == 58:
+                print("attack ray:")
+                print_binary_chessboard(B_ATTACK_TABLE[B_OFFSETS[sq] + i])
+
             
         # --- Populate Rook Flat Table ---
         r_patterns = 1 << RBits[sq]
         for i in range(r_patterns):
-            occ = get_occupancy(i, RBits[sq], R_MASKS[sq])
+            occ = get_occupancy(i, R_MASKS[sq])
             R_ATTACK_TABLE[R_OFFSETS[sq] + i] = generate_attacks_on_the_fly(sq, occ, is_rook=True)
 
 def generate_between_masks() -> list[list[int]]:

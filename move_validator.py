@@ -1,6 +1,7 @@
 from chess_game import Color, PieceType
 from attack_tables import B_ATTACK_TABLE, R_ATTACK_TABLE, R_MASKS, B_MASKS, BBits, RBits, B_OFFSETS, R_OFFSETS, BETWEEN_MASKS
 from magic_numbers import RMagic, BMagic
+from utils import print_binary_chessboard
 
 # Representation of a 64-bit board using standard integer bitboards
 # Bit 0 is a1, Bit 7 is h1, Bit 63 is h8
@@ -119,8 +120,12 @@ class MoveValidator():
         legal_moves = []
         bishop_bb = 1 << bishop_idx
 
+        print("occ")
+        print_binary_chessboard(friendly_pieces | enemy_pieces)
         pseudo_moves = self.get_bishop_moves(friendly_pieces | enemy_pieces, bishop_idx)
         valid_targets = pseudo_moves & ~friendly_pieces
+        print("valid targets")
+        print_binary_chessboard(valid_targets)
         while valid_targets:
             # Isolate the lowest set bit 
             target_bb = valid_targets & -valid_targets
@@ -131,20 +136,25 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
 
             # Check if enemy pieces can hit our king square after this move
-            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
-                legal_moves.append((bishop_idx, target_idx))
-            else:
-                print("piece attacks king")
-                
+            # if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+            legal_moves.append((bishop_idx, target_idx))
+                            
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
         return legal_moves
 
     def get_bishop_moves(self, occ: int, sq: int) -> int:
         occ   &= B_MASKS[sq]
+        print("masked occ")
+        print_binary_chessboard(occ)
         occ   *= BMagic[sq]
+        print("Magic Indexed")
+        print_binary_chessboard(occ)
         occ   &= 0xFFFFFFFFFFFFFFFF
         occ  >>= 64 - BBits[sq]
+        print("shifted index")
+        print_binary_chessboard(occ)
+        print("sq: ", sq)
         return B_ATTACK_TABLE[B_OFFSETS[sq] + occ]
 
     def get_bishop_attacks(self, occ: int, board: int, color: Color):
@@ -258,8 +268,6 @@ class MoveValidator():
             # Check if enemy pieces can hit our king square after this move
             if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
                 legal_moves.append((rook_idx, target_idx))
-            else:
-                print("piece attacks king")
 
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
