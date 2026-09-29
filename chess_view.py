@@ -243,7 +243,7 @@ class ChessBoard(tk.Tk):
             print("Fifty move rule")
             return
         elif self.game.get_result() == Result.UNFINISHED:
-            print("Unfinished")
+            print("Game is unfinished")
             return
         
         self.dragged_item = None

@@ -33,6 +33,7 @@ class ChessGame:
         self.castling_rights = 0xF  # Bitmask: 1=WK, 2=WQ, 4=BK, 8=BQ
         self.halfmove_clock = 0
         self.fullmove_number = 1
+        self.fifty_move_rule = 0
         self.move_validator = MoveValidator()
         self.reset_board()
 
@@ -114,6 +115,7 @@ class ChessGame:
             elif piece == PieceType.KING:
                 possible_moves.extend(self.move_validator.generate_legal_king_moves(sq, self.occupancies[us], self.occupancies[them], us, self.pieces))
         return len(possible_moves) > 0
+    
     def in_check(self) -> bool:
         us = self.side_to_move
         them = Color.BLACK if us == Color.WHITE else Color.WHITE
@@ -121,8 +123,8 @@ class ChessGame:
         return self.move_validator.enemy_attacks_func(self.pieces, us, self.occupancies[them], self.occupancies[us]) & king_bb
 
     def get_result(self) -> bool:
-        # if self.fifty_move_rule():
-        #     return Result.FIFTY_MOVE_RULE
+        if self.is_fifty_move_rule_active():
+            return Result.FIFTY_MOVE_RULE
         if not self.any_legal_moves():
             if self.in_check():
                 return Result.CHECKMATE
@@ -131,6 +133,9 @@ class ChessGame:
         else:
             return Result.UNFINISHED
 
+    def is_fifty_move_rule_active(self) -> bool:
+        return self.fifty_move_rule >= 50
+    
     def make_move(self, move: Move) -> bool:
         """Executes a move using highly efficient bitwise changes."""
         us = self.side_to_move
@@ -145,6 +150,11 @@ class ChessGame:
 
         ep_sq = self.en_passant_sq
         self.en_passant_sq = None
+
+        if moved_piece == PieceType.PAWN:
+            self.fifty_move_rule = 0
+        else:
+            self.fifty_move_rule += 1
 
         # En passant captures the pawn that just double-stepped, which is not on the landing square
         if moved_piece == PieceType.PAWN and ep_sq is not None and move.to_sq == ep_sq:
