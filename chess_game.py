@@ -20,7 +20,6 @@ class Move:
     def no_distance_moved(self) -> bool:
         return abs(self.from_sq - self.to_sq) == 0
 
-
 class ChessGame:
     def __init__(self):
         # 12 Piece Bitboards: [Color][PieceType]
@@ -97,21 +96,24 @@ class ChessGame:
         us = self.side_to_move
         them = Color.BLACK if us == Color.WHITE else Color.WHITE
         king_bb = self.pieces[us][PieceType.KING]
-        possible_moves = None
-        for piece in self.pieces[us]:
+        possible_moves = []
+        for sq in range(64):
+            piece = self.identify_piece(sq)
+            if piece is None:
+                continue
             if piece == PieceType.PAWN:
-                possible_moves = self.move_validator.generate_legal_pawn_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces, self.game.en_passant_sq)
+                possible_moves.extend(self.move_validator.generate_legal_pawn_moves(sq, self.occupancies[us], self.occupancies[them], king_bb, us, self.pieces, self.en_passant_sq))
             elif piece == PieceType.BISHOP:
-                possible_moves = self.move_validator.generate_legal_bishop_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+                possible_moves.extend(self.move_validator.generate_legal_bishop_moves(sq, self.occupancies[us], self.occupancies[them], king_bb, us, self.pieces))
             elif piece == PieceType.ROOK:
-                possible_moves = self.move_validator.generate_legal_rook_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+                possible_moves.extend(self.move_validator.generate_legal_rook_moves(sq, self.occupancies[us], self.occupancies[them], king_bb, us, self.pieces))
             elif piece == PieceType.KNIGHT:
-                possible_moves = self.move_validator.generate_legal_knight_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+                possible_moves.extend(self.move_validator.generate_legal_knight_moves(sq, self.occupancies[us], self.occupancies[them], king_bb, us, self.pieces))
             elif piece == PieceType.QUEEN:
-                possible_moves = self.move_validator.generate_legal_queen_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+                possible_moves.extend(self.move_validator.generate_legal_queen_moves(sq, self.occupancies[us], self.occupancies[them], king_bb, us, self.pieces))
             elif piece == PieceType.KING:
-                possible_moves = self.move_validator.generate_legal_king_moves(sq, self.occupancy[us], self.occupancy[them], us, self.pieces)
-        return possible_moves
+                possible_moves.extend(self.move_validator.generate_legal_king_moves(sq, self.occupancies[us], self.occupancies[them], us, self.pieces))
+        return len(possible_moves) > 0
     def in_check(self) -> bool:
         us = self.side_to_move
         them = Color.BLACK if us == Color.WHITE else Color.WHITE
