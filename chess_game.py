@@ -1,19 +1,6 @@
-from enum import IntEnum, unique
-
-@unique
-class Color(IntEnum):
-    WHITE = 0
-    BLACK = 1
-    BOTH = 2
-
-@unique
-class PieceType(IntEnum):
-    PAWN = 0
-    KNIGHT = 1
-    BISHOP = 2
-    ROOK = 3
-    QUEEN = 4
-    KING = 5
+from enum import IntEnum
+from move_validator import MoveValidator
+from game_rules import Result, Color, PieceType
 
 # Squares indexed 0 to 63 (A1 = 0, H8 = 63)
 # Little-Endian Rank-File Mapping
@@ -29,6 +16,9 @@ class Move:
 
     def __repr__(self):
         return f"Move({SQUARES[self.from_sq]} -> {SQUARES[self.to_sq]})"
+    
+    def no_distance_moved(self) -> bool:
+        return abs(self.from_sq - self.to_sq) == 0
 
 
 class ChessGame:
@@ -44,7 +34,7 @@ class ChessGame:
         self.castling_rights = 0xF  # Bitmask: 1=WK, 2=WQ, 4=BK, 8=BQ
         self.halfmove_clock = 0
         self.fullmove_number = 1
-        
+        self.move_validator = MoveValidator()
         self.reset_board()
 
     # --- Bit Manipulation Helpers ---
@@ -102,6 +92,42 @@ class ChessGame:
         for p in PieceType:
             if self.get_bit(self.pieces[us][p], from_sq):
                 return p
+
+    def any_legal_moves(self) -> bool:
+        us = self.side_to_move
+        them = Color.BLACK if us == Color.WHITE else Color.WHITE
+        king_bb = self.pieces[us][PieceType.KING]
+        possible_moves = None
+        for piece in self.pieces[us]:
+            if piece == PieceType.PAWN:
+                possible_moves = self.move_validator.generate_legal_pawn_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces, self.game.en_passant_sq)
+            elif piece == PieceType.BISHOP:
+                possible_moves = self.move_validator.generate_legal_bishop_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+            elif piece == PieceType.ROOK:
+                possible_moves = self.move_validator.generate_legal_rook_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+            elif piece == PieceType.KNIGHT:
+                possible_moves = self.move_validator.generate_legal_knight_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+            elif piece == PieceType.QUEEN:
+                possible_moves = self.move_validator.generate_legal_queen_moves(sq, self.occupancy[us], self.occupancy[them], king_bb, us, self.pieces)
+            elif piece == PieceType.KING:
+                possible_moves = self.move_validator.generate_legal_king_moves(sq, self.occupancy[us], self.occupancy[them], us, self.pieces)
+        return possible_moves
+    def in_check(self) -> bool:
+        us = self.side_to_move
+        them = Color.BLACK if us == Color.WHITE else Color.WHITE
+        king_bb = self.pieces[us][PieceType.KING]
+        return self.move_validator.enemy_attacks_func(self.pieces, us, self.occupancies[them], self.occupancies[us]) & king_bb
+
+    def get_result(self) -> bool:
+        # if self.fifty_move_rule():
+        #     return Result.FIFTY_MOVE_RULE
+        if not self.any_legal_moves():
+            if self.in_check():
+                return Result.CHECKMATE
+            else:
+                return Result.STALEMATE
+        else:
+            return Result.UNFINISHED
 
     def make_move(self, move: Move) -> bool:
         """Executes a move using highly efficient bitwise changes."""

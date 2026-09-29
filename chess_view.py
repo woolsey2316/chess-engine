@@ -3,6 +3,7 @@ import math
 from PIL import Image, ImageTk
 from chess_game import ChessGame, Move, Color, PieceType
 from move_validator import MoveValidator
+from game_rules import Result
 class ChessBoard(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -202,6 +203,7 @@ class ChessBoard(tk.Tk):
         """Clears the drag tracking when the mouse button is released."""
         self.hide_possible_moves()
         self.hide_enemy_attacks()
+        # return piece to original position if the mouse is not on the board
         if event.x < 0 or event.y < 0 or event.x > self.square_size * 8 or event.y > self.square_size * 8:
             (end_x, end_y) = self.grid_snap(self.pickup_x, self.pickup_y) 
             self.canvas.moveto(self.dragged_item, end_x, end_y)
@@ -212,6 +214,8 @@ class ChessBoard(tk.Tk):
                 self.get_square_from_gui(self.pickup_x, self.pickup_y), 
                 self.get_square_from_gui(event.x, event.y)
                 )
+        if move.no_distance_moved():
+            return
         self.secondClosestPiece = ChessBoard.get_second_closest(self.canvas, event.x, event.y, self.dragged_item)
 
         secondClosestPieceCoords = self.canvas.coords(self.secondClosestPiece)
@@ -229,6 +233,18 @@ class ChessBoard(tk.Tk):
             self.hide_piece_on_square(captured_sq)
         
         # self.game.print_board()
+        if self.game.get_result() == Result.CHECKMATE:
+            print("Checkmate")
+            return
+        elif self.game.get_result() == Result.STALEMATE:
+            print("Stalemate")
+            return
+        elif self.game.get_result() == Result.FIFTY_MOVE_RULE:
+            print("Fifty move rule")
+            return
+        elif self.game.get_result() == Result.UNFINISHED:
+            print("Unfinished")
+            return
         
         self.dragged_item = None
 

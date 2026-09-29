@@ -1,4 +1,4 @@
-from chess_game import Color, PieceType
+from game_rules import Color, PieceType
 from attack_tables import B_ATTACK_TABLE, R_ATTACK_TABLE, R_MASKS, B_MASKS, BBits, RBits, B_OFFSETS, R_OFFSETS, BETWEEN_MASKS
 from magic_numbers import RMagic, BMagic
 from utils import print_binary_chessboard
