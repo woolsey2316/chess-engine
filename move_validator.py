@@ -36,36 +36,6 @@ class MoveValidator():
 
         return attacks & 0xFFFFFFFFFFFFFFFF
 
-    def generate_legal_knight_moves(self, knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
-        """Generates strictly legal moves for a single knight."""
-        legal_moves = []
-        knight_bb = 1 << knight_idx
-        
-        # 1. Get pseudo-legal targets (anywhere the piece can structurally jump)
-        pseudo_attacks = self.get_knight_attacks(knight_bb)
-        
-        # 2. Remove targets occupied by friendly pieces
-        valid_targets = pseudo_attacks & ~friendly_pieces
-        
-        # 3. Filter for King Safety (Strict Legality)
-        while valid_targets:
-            # Isolate the lowest set bit (target square)
-            target_bb = valid_targets & -valid_targets
-            target_idx = target_bb.bit_length() - 1
-            
-            # Simulate the board state change
-            next_friendly = (friendly_pieces & ~knight_bb) | target_bb
-            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
-            
-            # Check if enemy pieces can hit our king square after this move
-            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
-                legal_moves.append((knight_idx, target_idx))
-                
-            # Clear the bit to process the next move
-            valid_targets &= valid_targets - 1
-            
-        return legal_moves
-
     def get_pawn_attacks(self, pawn_bitboard: int, color: Color) -> int:
         not_a = ~FILE_A & 0xFFFFFFFFFFFFFFFF
         not_h = ~FILE_H & 0xFFFFFFFFFFFFFFFF
@@ -116,6 +86,36 @@ class MoveValidator():
 
         return pseudo_moves & 0xFFFFFFFFFFFFFFFF
 
+    def generate_legal_knight_moves(self, knight_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
+        """Generates strictly legal moves for a single knight."""
+        legal_moves = []
+        knight_bb = 1 << knight_idx
+        
+        # 1. Get pseudo-legal targets (anywhere the piece can structurally jump)
+        pseudo_attacks = self.get_knight_attacks(knight_bb)
+        
+        # 2. Remove targets occupied by friendly pieces
+        valid_targets = pseudo_attacks & ~friendly_pieces
+        
+        # 3. Filter for King Safety (Strict Legality)
+        while valid_targets:
+            # Isolate the lowest set bit (target square)
+            target_bb = valid_targets & -valid_targets
+            target_idx = target_bb.bit_length() - 1
+            
+            # Simulate the board state change
+            next_friendly = (friendly_pieces & ~knight_bb) | target_bb
+            next_enemy = enemy_pieces & ~target_bb # Handle potential capture
+            
+            # Check if enemy pieces can hit our king square after this move
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((knight_idx, target_idx))
+                
+            # Clear the bit to process the next move
+            valid_targets &= valid_targets - 1
+            
+        return legal_moves
+
     def generate_legal_bishop_moves(self, bishop_idx: int, friendly_pieces: int, enemy_pieces: int, king_bb: int, color: Color, pieces: list[list[int]]) -> list:
         """Generate strictly legal moves for a bishop"""
         legal_moves = []
@@ -133,8 +133,8 @@ class MoveValidator():
             next_enemy = enemy_pieces & ~target_bb # Handle potential capture
 
             # Check if enemy pieces can hit our king square after this move
-            # if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
-            legal_moves.append((bishop_idx, target_idx))
+            if not (self.enemy_attacks_func(pieces, color, next_enemy, next_friendly) & king_bb):
+                legal_moves.append((bishop_idx, target_idx))
                             
             # Clear the bit to process the next move
             valid_targets &= valid_targets - 1
@@ -195,7 +195,7 @@ class MoveValidator():
         attacks = 0
         them = Color.WHITE if color == Color.BLACK else Color.BLACK
         for p in PieceType:
-            p_bb = pieces[them][p]
+            p_bb = pieces[them][p] & enemy & 0xFFFFFFFFFFFFFFFF
             if not p_bb:
                 continue
             if p == PieceType.PAWN:
